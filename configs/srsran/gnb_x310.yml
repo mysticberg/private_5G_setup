@@ -1,0 +1,27 @@
+# srsRAN 5G gNodeB Configuration for USRP X310 (ueran-ns)
+cu_cp:
+  amf:
+    addr: 10.200.1.1        # Host side IP of veth-ran-host
+    port: 38412
+    bind_addr: 10.200.1.2   # Namespace side IP of veth-ran-ns
+
+ru_sdr:
+  device_driver: uhd
+  device_args: type=x300,addr=192.168.10.2,num_recv_frames=64,num_send_frames=64
+  srate: 23.04
+  otw_format: sc16
+  tx_gain: 30
+  rx_gain: 30
+
+cell_cfg:
+  dl_arfcn: 632628          # Band n78 (3.5 GHz)
+  band: 78
+  channel_bandwidth_MHz: 20
+  common_scs: 30
+  plmn: "00101"
+  tac: 1
+  pci: 1
+
+log:
+  filename: /tmp/gnb.log
+  all_level: info

@@ -1,0 +1,73 @@
+# Open5GS SMF Configuration for Multi-Namespace UPFs
+logger:
+  file:
+    path: /var/log/open5gs/smf.log
+  level: info
+
+global:
+  max:
+    ue: 1024
+
+smf:
+  sbi:
+    server:
+      - address: 127.0.0.4
+        port: 7777
+      - address: 10.200.1.1
+        port: 7777
+    client:
+      scp:
+        - uri: http://127.0.0.200:7777
+
+  gtpc:
+    server:
+      - address: 127.0.0.4
+  gtpu:
+    server:
+      - address: 127.0.0.4
+
+  pfcp:
+    server:
+      - address: 10.200.1.1   # Host Gateway IP facing Namespaces
+      - address: 10.200.3.1   # Host Gateway IP facing upf1-ns
+      - address: 10.200.4.1   # Host Gateway IP facing upf2-ns
+    client:
+      upf:
+        # --- UPF 1: Internet Namespace (upf1-ns) ---
+        - address: 10.200.3.2
+          dnn: internet
+        # --- UPF 2: MEC / Critical Namespace (upf2-ns) ---
+        - address: 10.200.4.2
+          dnn:
+            - critical
+            - mec-secure
+            - iot
+
+  dns:
+    - 51.0.0.1
+    - 1.1.1.1
+    - 8.8.8.8
+    - 8.8.4.4
+
+  session:
+    # --- Slice 1: Internet ---
+    - subnet: 10.45.0.0/16
+      gateway: 10.45.0.1
+      dnn: internet
+      dev: ogstun
+    # --- Slice 2: MEC / Critical ---
+    - subnet: 10.46.0.0/16
+      gateway: 10.46.0.1
+      dnn: critical
+      dev: ogstun
+    - subnet: 10.46.0.0/16
+      gateway: 10.46.0.1
+      dnn: mec-secure
+      dev: ogstun
+    # --- Slice 3: IoT / Camera ---
+    - subnet: 10.47.0.0/16
+      gateway: 10.47.0.1
+      dnn: iot
+      dev: ogstun2
+
+  mtu: 1500
