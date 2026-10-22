@@ -7,11 +7,11 @@ cu_cp:
 
 ru_sdr:
   device_driver: uhd
-  device_args: type=x300,addr=192.168.10.2,num_recv_frames=64,num_send_frames=64
+  device_args: type=x300,addr=192.168.10.2,num_recv_frames=64,num_send_frames=64,send_frame_size=8000,recv_frame_size=8000
   srate: 23.04
   otw_format: sc16
   tx_gain: 30
-  rx_gain: 30
+  rx_gain: 25
 
 cell_cfg:
   dl_arfcn: 632628          # Band n78 (3.5 GHz)
@@ -21,6 +21,17 @@ cell_cfg:
   plmn: "00101"
   tac: 1
   pci: 1
+
+  pdsch:
+    max_consecutive_kos: 1000
+
+  pusch:
+    mcs_table: qam64
+    max_consecutive_kos: 1000
+
+  pucch:
+    p0_nominal: -70
+    max_consecutive_kos: 1000
 
 log:
   filename: /tmp/gnb.log

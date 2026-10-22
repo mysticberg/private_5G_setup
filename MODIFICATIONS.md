@@ -18,6 +18,7 @@ This document logs all architectural changes, bug fixes, performance optimizatio
 10. [Secure Automation & Credential Handling](#10-secure-automation--credential-handling)
 11. [Operational Scripting & Output Standardization](#11-operational-scripting--output-standardization)
 12. [PFCP Peer Mismatch & UPF Subnet NAT Resolution](#12-pfcp-peer-mismatch--upf-subnet-nat-resolution)
+13. [Cellular Throughput Bottleneck & RLF Drop Remediation](#13-cellular-throughput-bottleneck--rlf-drop-remediation)
 
 ---
 
@@ -179,3 +180,23 @@ This document logs all architectural changes, bug fixes, performance optimizatio
   2. Updated [`scripts/1_setup_network.sh`](file:///home/private-5g/Private-5g_setup/scripts/1_setup_network.sh) to add iptables NAT MASQUERADE for `10.200.3.0/24` and `10.200.4.0/24`.
   3. Added `1.1.1.1` to [`configs/open5gs/smf.yaml`](file:///home/private-5g/Private-5g_setup/configs/open5gs/smf.yaml) DNS distribution list.
 * **Files Impacted:** [`configs/open5gs/upf_internet.yaml`](file:///home/private-5g/Private-5g_setup/configs/open5gs/upf_internet.yaml), [`configs/open5gs/upf_mec.yaml`](file:///home/private-5g/Private-5g_setup/configs/open5gs/upf_mec.yaml), [`configs/open5gs/smf.yaml`](file:///home/private-5g/Private-5g_setup/configs/open5gs/smf.yaml), [`scripts/1_setup_network.sh`](file:///home/private-5g/Private-5g_setup/scripts/1_setup_network.sh).
+
+---
+
+### 13. Cellular Throughput Bottleneck & RLF Drop Remediation
+* **Problem:** 
+  1. Cellular throughput on connected UEs was severely bottlenecked (~1 Mbps downlink, ~0.5 Mbps uplink) despite the host having a >200 Mbps backhaul.
+  2. The mobile phone was intermittently dropping its 5G connection and re-registering every 6–10 seconds.
+* **Root Cause:**
+  1. **UHD Packet MTU Fragmentation:** The physical NIC `eno1` was configured for MTU 9000, but `ru_sdr.device_args` lacked `send_frame_size=8000,recv_frame_size=8000`. UHD defaulted to 1500-byte slicing, inducing packet fragmentation overhead, buffer jitter, and micro-drops over 1 GbE/10 GbE.
+  2. **RLF from Undecoded CSI (Submerged PUCCH Power):** The default open-loop target power for PUCCH (`p0_nominal: -90 dBm`) fell at or below the receiver thermal noise floor (~ -93 dBm). PUCCH Format 2 CSI reports arrived with negative SINR (-2 to -7 dB) and failed decoding (`csi1=2222`). Once 100 consecutive undecoded CSIs accumulated (~2 seconds), the gNodeB's MAC Radio Link Failure (RLF) detector triggered: `RLF detected. Cause: 100 consecutive undecoded CSIs`, starting a 4-second release timer and tearing down the UE context via `UEContextReleaseRequest` (`cause="MAC max KOs reached"`).
+  3. **PUSCH Modulation Mismatch:** srsRAN defaulted `pusch.mcs_table` to `qam256`. Commercial smartphones in sub-6 GHz FR1 rarely support 256QAM on uplink, causing 100% CRC failure on grants decoded under 3GPP Table 2 and forcing maximum HARQ retransmissions.
+  4. **Kernel Socket Backlogs:** Default kernel socket read/write buffers were 208 KB instead of high-bandwidth performance sizing.
+* **Solution:**
+  1. Configured `send_frame_size=8000,recv_frame_size=8000` in `ru_sdr.device_args` to match the physical MTU 9000 interface.
+  2. Boosted PUCCH target power by 20 dB: set `cell_cfg.pucch.p0_nominal: -70` (dBm) and relaxed `max_consecutive_kos: 1000` across `pucch`, `pusch`, and `pdsch` to eliminate premature RLF drops.
+  3. Set `cell_cfg.pusch.mcs_table: qam64` for standard 3GPP Table 1 compatibility with commercial smartphone modem capabilities.
+  4. Calibrated `tx_gain: 30` and `rx_gain: 25` to optimize downlink coverage while preventing USRP receiver LNA saturation.
+  5. Applied baremetal performance sysctl profile (`rmem_max=64MB`, `wmem_max=64MB`, `rmem_default=32MB`, `wmem_default=32MB`, and BBR congestion control).
+* **Files Impacted:** [`configs/srsran/gnb_x310.yml`](file:///home/private-5g/Private-5g_setup/configs/srsran/gnb_x310.yml), [`configs/sysctl/99-5g-performance.conf`](file:///home/private-5g/Private-5g_setup/configs/sysctl/99-5g-performance.conf).
+
