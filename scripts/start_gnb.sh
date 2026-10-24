@@ -52,6 +52,23 @@ else
     echo " [-] WARNING: Cannot reach 10.200.1.1 from ueran-ns."
 fi
 
+if [ "$1" = "--daemon" ] || [ "$1" = "-d" ]; then
+    echo "======================================================"
+    echo " Starting gNodeB process inside ueran-ns (Daemon mode)..."
+    echo " Config: $OPT_DIR/gnb_config.yml"
+    echo "======================================================"
+    sudo ip netns exec ueran-ns nohup "$GNB_BIN" -c "$OPT_DIR/gnb_config.yml" > /tmp/gnb_stdout.log 2>&1 &
+    sleep 3
+    GNB_PID=$(sudo ip netns exec ueran-ns pgrep -x gnb || true)
+    if [ -n "$GNB_PID" ]; then
+        echo " [+] gNodeB is ACTIVE [PID: $GNB_PID]"
+    else
+        echo " [-] Failed to launch gNodeB. Check /tmp/gnb.log or /tmp/gnb_stdout.log"
+        exit 1
+    fi
+    exit 0
+fi
+
 echo "======================================================"
 echo " Starting gNodeB process inside ueran-ns..."
 echo " Config: $OPT_DIR/gnb_config.yml"

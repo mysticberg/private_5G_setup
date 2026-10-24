@@ -10,7 +10,7 @@ ru_sdr:
   device_args: type=x300,addr=192.168.10.2,num_recv_frames=64,num_send_frames=64,send_frame_size=8000,recv_frame_size=8000
   srate: 23.04
   otw_format: sc16
-  tx_gain: 30
+  tx_gain: 25
   rx_gain: 25
 
 cell_cfg:
@@ -22,15 +22,19 @@ cell_cfg:
   tac: 1
   pci: 1
 
-  pdsch:
-    max_consecutive_kos: 1000
+  ul_common:
+    p_max: 23
 
-  pusch:
-    mcs_table: qam64
-    max_consecutive_kos: 1000
+  csi:
+    csi_rs_enabled: false
 
   pucch:
-    p0_nominal: -70
+    nof_cell_csi_res: 0
+    max_consecutive_kos: 10000
+
+  pusch:
+    max_puschs_per_slot: 1
+    mcs_table: qam64
     max_consecutive_kos: 1000
 
 log:

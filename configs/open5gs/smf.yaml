@@ -35,7 +35,9 @@ smf:
       upf:
         # --- UPF 1: Internet Namespace (upf1-ns) ---
         - address: 10.200.3.2
-          dnn: internet
+          dnn:
+            - internet
+            - apn
         # --- UPF 2: MEC / Critical Namespace (upf2-ns) ---
         - address: 10.200.4.2
           dnn:
@@ -54,6 +56,10 @@ smf:
     - subnet: 10.45.0.0/16
       gateway: 10.45.0.1
       dnn: internet
+      dev: ogstun
+    - subnet: 10.45.0.0/16
+      gateway: 10.45.0.1
+      dnn: apn
       dev: ogstun
     # --- Slice 2: MEC / Critical ---
     - subnet: 10.46.0.0/16

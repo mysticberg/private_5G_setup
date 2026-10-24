@@ -200,3 +200,33 @@ This document logs all architectural changes, bug fixes, performance optimizatio
   5. Applied baremetal performance sysctl profile (`rmem_max=64MB`, `wmem_max=64MB`, `rmem_default=32MB`, `wmem_default=32MB`, and BBR congestion control).
 * **Files Impacted:** [`configs/srsran/gnb_x310.yml`](file:///home/private-5g/Private-5g_setup/configs/srsran/gnb_x310.yml), [`configs/sysctl/99-5g-performance.conf`](file:///home/private-5g/Private-5g_setup/configs/sysctl/99-5g-performance.conf).
 
+---
+
+### 14. Multi-UE TDM Scheduling & Uplink Near-Far Dynamic Range Fix
+* **Problem:** Adding a second SIM (`...1590`) on a second mobile phone caused the new UE to register and pass data for ~15 seconds, followed by radio link failure (RLF), RLC retry exhaustion, unregistration, and signal loss while the primary UE was active.
+* **Root Cause:**
+  1. **Uplink FDM Near-Far Dynamic Range Collapse:** Default srsRAN uplink scheduling allocated Frequency Division Multiplexing (FDM) sub-bands across multiple UEs in the same slot. Because the primary UE transmitted at +35 dB SINR, the USRP X310 single-channel ADC dynamic range was dominated by the closer UE, submerging the second UE's signal at -27 to -32 dB SINR (100% `crc=KO`). Unacknowledged downlink RLC packets exhausted retransmissions (`RLC max ReTxs reached`), triggering a premature UE context release.
+  2. **SIB1 Uplink Power Throttling:** Omitting `ul_common.p_max: 23` caused certain commercial smartphones to throttle their maximum uplink power to 10–11 dBm (`p_cmax = 10..11 dBm`) rather than utilizing their full 23 dBm power amplifier.
+  3. **Power Amplifier Saturation from $P_0$ Over-Boosting:** Overriding `pucch.p0_nominal: -70` forced the smartphone's open-loop power calculation to demand +40 dBm, resulting in severe negative power headroom (`ph = -19 dB`) and non-linear power amplifier clipping.
+* **Solution:**
+  1. **Time Division Multiplexing (TDM) Uplink Scheduling:** Configured `cell_cfg.pusch.max_puschs_per_slot: 1` in [`configs/srsran/gnb_x310.yml`](file:///home/private-5g/Private-5g_setup/configs/srsran/gnb_x310.yml). This guarantees each uplink slot is exclusively dedicated to a single UE, eliminating cross-UE FDM near-far dynamic range collapse on the SDR receiver.
+  2. **Full UE Power Unlocking:** Added `cell_cfg.ul_common.p_max: 23` to SIB1, allowing phones to output up to 23 dBm (200 mW).
+  3. **Restored 3GPP Nominal Power:** Removed the `-70 dBm` override on PUCCH, restoring standard -90 dBm open-loop target power and yielding a healthy +9 to +10 dB power headroom without distortion.
+  4. **Operational Script Daemonization:** Updated [`scripts/start_gnb.sh`](file:///home/private-5g/Private-5g_setup/scripts/start_gnb.sh) with `--daemon` / `-d` flag support for non-blocking execution inside `ueran-ns`.
+* **Files Impacted:** [`configs/srsran/gnb_x310.yml`](file:///home/private-5g/Private-5g_setup/configs/srsran/gnb_x310.yml), [`scripts/start_gnb.sh`](file:///home/private-5g/Private-5g_setup/scripts/start_gnb.sh), `/opt/srsRAN_gnb/gnb_config.yml`.
+
+---
+
+### 15. CSI-RS Elimination & Universal APN Alias Support
+* **Problem:** Swapping SIMs between Phone A (IMEISV `35514244...`) and Phone B (IMEISV `86202706...`) proved that Phone A works continuously with any SIM, while Phone B consistently drops after 15–20 seconds regardless of which SIM is installed.
+* **Root Cause:**
+  1. **Premature 2-Second CSI RLF Drop:** srsRAN scheduled periodic CSI measurements and PUCCH Format 2 reports every 20 ms. Phone B's RF front-end/modem transmitted PUCCH Format 2 at low power (`sinr=-6 dB` to `-10 dB`, `csi1=2222`) or paused CSI when transitioning between data states. After exactly 100 consecutive undecoded reports ($100 \times 20\text{ ms} = 2.0\text{ seconds}$), srsRAN declared `RLF detected. Cause: 100 consecutive undecoded CSIs`, started a 4000 ms release timer, and tore down the connection with `cause="MAC max KOs reached"`. Phone A never dropped because its higher transmit power continuously decoded and reset the counter.
+  2. **Device APN Profile Mismatch:** Phone B defaulted its cellular network APN to `"apn"` rather than `"internet"`. Open5GS rejected the session (`Ue requested DNN "apn" Not Supported OR Not Subscribed in the Slice`), preventing data plane establishment and triggering modem resets.
+* **Solution:**
+  1. **Eliminated Periodic CSI Overhead:** Set `cell_cfg.csi.csi_rs_enabled: false` and `cell_cfg.pucch.nof_cell_csi_res: 0` in [`configs/srsran/gnb_x310.yml`](file:///home/private-5g/Private-5g_setup/configs/srsran/gnb_x310.yml). In 1x1 SISO deployments, spatial rank is fixed to 1 and MIMO precoding matrices are unused; Outer-Loop Link Adaptation (OLLA) handles PDSCH MCS adjustment reliably based on HARQ ACK/NACK.
+  2. **Elevated RLF Thresholds:** Set `cell_cfg.pucch.max_consecutive_kos: 10000` and `cell_cfg.pusch.max_consecutive_kos: 1000` to prevent premature radio link drops.
+  3. **Universal APN Support:** Added `dnn: apn` alongside `internet` in [`configs/open5gs/smf.yaml`](file:///home/private-5g/Private-5g_setup/configs/open5gs/smf.yaml) and [`configs/open5gs/upf_internet.yaml`](file:///home/private-5g/Private-5g_setup/configs/open5gs/upf_internet.yaml), and provisioned `apn` into MongoDB subscriber profiles. Devices requesting either `"internet"` or generic `"apn"` receive immediate data breakout on `10.45.0.0/16`.
+* **Files Impacted:** [`configs/srsran/gnb_x310.yml`](file:///home/private-5g/Private-5g_setup/configs/srsran/gnb_x310.yml), `/opt/srsRAN_gnb/gnb_config.yml`, [`configs/open5gs/smf.yaml`](file:///home/private-5g/Private-5g_setup/configs/open5gs/smf.yaml), [`configs/open5gs/upf_internet.yaml`](file:///home/private-5g/Private-5g_setup/configs/open5gs/upf_internet.yaml).
+
+
+
