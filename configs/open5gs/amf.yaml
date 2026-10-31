@@ -25,8 +25,8 @@ amf:
 
   metrics:
     server:
-      - address: 127.0.0.5
-        port: 9090
+      - address: 10.200.1.1
+        port: 9091
 
   guami:
     - plmn_id:
