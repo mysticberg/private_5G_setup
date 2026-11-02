@@ -29,10 +29,18 @@ cell_cfg:
     csi_rs_enabled: false
 
   pucch:
+    sr_period_ms: 5
     nof_cell_csi_res: 0
     max_consecutive_kos: 10000
 
+  pdsch:
+    min_ue_mcs: 12
+    max_ue_mcs: 28
+    mcs_table: qam64
+
   pusch:
+    min_ue_mcs: 6
+    max_ue_mcs: 28
     max_puschs_per_slot: 1
     mcs_table: qam64
     max_consecutive_kos: 1000

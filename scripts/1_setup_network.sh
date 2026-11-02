@@ -99,6 +99,12 @@ sudo ip route replace 10.45.0.0/16 via 10.200.3.2 dev veth-upf1-host
 sudo ip route replace 10.46.0.0/16 via 10.200.4.2 dev veth-upf2-host
 sudo ip route replace 10.47.0.0/16 via 10.200.4.2 dev veth-upf2-host
 
+# Ensure Table 200 has default breakout to WAN
+WAN_GW=$(ip -4 route show default 2>/dev/null | awk '{print $3}' | head -n 1)
+if [ -n "$WAN_GW" ]; then
+    sudo ip route replace default via "$WAN_GW" dev "$WAN_IF" table 200 2>/dev/null || true
+fi
+
 # Enable IP forwarding and NAT MASQUERADE on Host
 sudo sysctl -w net.ipv4.ip_forward=1 >/dev/null
 
@@ -119,6 +125,9 @@ if [ -f "$PROJECT_ROOT/configs/sysctl/99-5g-performance.conf" ]; then
     sudo cp "$PROJECT_ROOT/configs/sysctl/99-5g-performance.conf" /etc/sysctl.d/99-5g-performance.conf 2>/dev/null || true
     sudo sysctl -p /etc/sysctl.d/99-5g-performance.conf >/dev/null 2>&1 || true
 fi
+
+# Set CPU governor to performance mode
+sudo cpupower frequency-set -g performance
 
 # Clamp TCP MSS to prevent packet fragmentation over GTP-U tunnels
 sudo iptables -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
